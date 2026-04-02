@@ -2,6 +2,9 @@ package org.example
 
 import java.io.File
 import java.nio.ByteBuffer
+import java.nio.MappedByteBuffer
+import java.nio.channels.FileChannel
+import java.io.RandomAccessFile
 import kotlin.math.sqrt
 
 // prism-ttf App.kt
@@ -273,14 +276,37 @@ class TTFParser {
     }
 }
 
+const val BUFFER_SIZE: Long = 1024 * 1024 * 10 // 10 MB
+
+class MemoryMappedFile(sharedMemoryFile: String) {
+    val memoryFile: RandomAccessFile
+    val fileChannel: FileChannel
+    val buffer: MappedByteBuffer
+
+    init {
+        memoryFile = RandomAccessFile(sharedMemoryFile, "rw")
+        fileChannel = memoryFile.channel
+        buffer = fileChannel.map(FileChannel.MapMode.READ_WRITE, 0, BUFFER_SIZE)
+    }
+
+    fun close() {
+        fileChannel.close()
+        memoryFile.close()
+    }
+}
+
 fun main(arguments: Array<String>) {
     var ttfFile: String? = null
     var fontSize: Int? = null // pt
     var screenDpi: Int? = null // ppi
     var sdfFolder: String? = null
 
+    // TODO: accept another argument for a singular codepoint, default to a standard set of ASCII characters if not provided
+    var asciiCodepoints = (32..126).toList() // space to tilde
+
     for (i in arguments.indices) {
         when (arguments[i]) {
+            "--codepoint" -> asciiCodepoints = listOf(arguments.getOrNull(i + 1)?.toIntOrNull() ?: 32)
             "--ttf" -> ttfFile = arguments.getOrNull(i + 1)
             "--font-size" -> fontSize = arguments.getOrNull(i + 1)?.toIntOrNull()
             "--dpi" -> screenDpi = arguments.getOrNull(i + 1)?.toIntOrNull()
